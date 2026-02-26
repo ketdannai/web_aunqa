@@ -1,5 +1,4 @@
 <?php
-// ... (ส่วน PHP Logic ด้านบนคงเดิมทั้งหมด) ...
 session_start();
 require_once "../config.php";
 
@@ -13,7 +12,7 @@ $user_role = $_SESSION["use_role"] ?? 'user';
 $is_admin = ($user_role == 'admin');
 $full_name = htmlspecialchars(($_SESSION["use_title"] ?? '') . ($_SESSION["use_fname"] ?? '') . " " . ($_SESSION["use_lname"] ?? ''));
 
-// Logic ตรวจสอบและดึงข้อมูลคงเดิม
+// Logic ตรวจสอบและดึงข้อมูล
 $has_teacher_profile = false;
 $check_sql = "SELECT COUNT(*) FROM teachers WHERE use_id = ?";
 if ($check_stmt = $link->prepare($check_sql)) {
@@ -68,9 +67,7 @@ unset($_SESSION["teacher_success"]);
             --sidebar-active: #cce0ff;
         }
         body { font-family: 'Sarabun', sans-serif; background-color: #f4f6f9; margin: 0; }
-        
         .main-header { background-color: var(--accent-blue); color: white; padding: 15px 20px; z-index: 1000; position: relative; }
-
         .sidebar { width: 250px; background-color: var(--bg-dark); min-height: 100vh; flex-shrink: 0; }
         .sidebar .nav-link { 
             color: #f8f9fa; padding: 12px 15px; margin-bottom: 1px; 
@@ -78,34 +75,30 @@ unset($_SESSION["teacher_success"]);
             text-decoration: none; display: block; font-weight: 300; font-family: 'Kanit';
         }
         .sidebar .nav-link.active { background-color: var(--sidebar-active); color: #212529; font-weight: 600; }
-
         .content { flex-grow: 1; padding: 40px; background-color: white; }
         h1 { font-family: 'Kanit'; font-weight: 600; color: #003566; }
 
-        /* การตั้งค่าตาราง */
         .table-teacher thead th { 
             background-color: #f8f9fa; color: #003566; 
             border: 1px solid #dee2e6; text-align: center; padding: 12px;
         }
         .table-teacher td { border: 1px solid #dee2e6; vertical-align: middle; padding: 12px; }
 
-        /* CSS สำหรับการพิมพ์รายงาน */
+        .pagination .page-link { color: var(--accent-blue); border-radius: 5px; margin: 0 2px; }
+        .pagination .page-item.active .page-link { background-color: var(--accent-blue); border-color: var(--accent-blue); }
+
         @media print {
-            /* ซ่อนส่วนที่ไม่ต้องการในรายงาน */
-            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input { display: none !important; }
-            
+            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input, .pagination-container, .search-container { display: none !important; }
             body { background: white !important; }
             .content { padding: 0 !important; width: 100%; }
             .table-teacher { border: 1px solid #000 !important; width: 100% !important; }
-            .table-teacher th, .table-teacher td { border: 1px solid #000 !important; color: black !important; }
-            
-            /* ซ่อนแถวที่ไม่ได้ถูกเลือก */
+            .table-teacher th, .table-teacher td { border: 1px solid #000 !important; color: black !important; display: table-cell !important; }
             tr.d-none-print { display: none !important; }
-            
             .print-header { display: block !important; text-align: center; margin-bottom: 30px; }
+            tr { display: table-row !important; }
         }
         .print-header { display: none; }
-        .selected-row { background-color: #fff9db !important; } /* ไฮไลท์แถวที่เลือกบนหน้าเว็บ */
+        .selected-row { background-color: #fff9db !important; }
     </style>
 </head>
 <body>
@@ -167,6 +160,17 @@ unset($_SESSION["teacher_success"]);
             </div>
         </div>
 
+        <div class="row mb-3 no-print">
+    <div class="col-md-4 ms-auto">
+        <div class="input-group shadow-sm">
+            <span class="input-group-text bg-white border-end-0">
+                <i class="bi bi-search text-muted"></i>
+            </span>
+            <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="ค้นหาชื่อโครงการ, อาจารย์, หรือกลุ่มเรียน...">
+        </div>
+    </div>
+</div>
+
         <div class="card border-0 shadow-sm p-3">
             <div class="table-responsive">
                 <table class="table table-bordered table-teacher align-middle" id="teacherTable">
@@ -212,6 +216,12 @@ unset($_SESSION["teacher_success"]);
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="d-flex justify-content-center mt-3 no-print pagination-container">
+                <nav>
+                    <ul class="pagination pagination-sm mb-0" id="paginationUl"></ul>
+                </nav>
             </div>
         </div>
     </main>
@@ -282,7 +292,68 @@ unset($_SESSION["teacher_success"]);
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// ฟังก์ชันเปิดแก้ไข
+const table = document.getElementById('teacherTable');
+const searchInput = document.getElementById('searchInput');
+const paginationUl = document.getElementById('paginationUl');
+const allRows = Array.from(table.querySelectorAll('tbody tr'));
+
+let currentPage = 1;
+const maxRows = 10; // กำหนดให้แสดงหน้าละ 10 แถวตายตัว
+
+function updateTable() {
+    const filter = searchInput.value.toLowerCase();
+
+    const filteredRows = allRows.filter(row => {
+        const text = row.textContent.toLowerCase();
+        const isMatch = text.includes(filter);
+        row.style.display = 'none';
+        return isMatch;
+    });
+
+    const totalRows = filteredRows.length;
+    const totalPages = Math.ceil(totalRows / maxRows);
+    
+    if (currentPage > totalPages) currentPage = 1;
+    if (currentPage < 1) currentPage = 1;
+
+    const start = (currentPage - 1) * maxRows;
+    const end = start + maxRows;
+
+    filteredRows.slice(start, end).forEach(row => {
+        row.style.display = '';
+    });
+
+    renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+    paginationUl.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    createPageItem('«', currentPage > 1, () => { currentPage--; updateTable(); });
+    for (let i = 1; i <= totalPages; i++) {
+        createPageItem(i, true, () => { currentPage = i; updateTable(); }, i === currentPage);
+    }
+    createPageItem('»', currentPage < totalPages, () => { currentPage++; updateTable(); });
+}
+
+function createPageItem(label, enabled, onClick, active = false) {
+    const li = document.createElement('li');
+    li.className = `page-item ${active ? 'active' : ''} ${!enabled ? 'disabled' : ''}`;
+    const a = document.createElement('a');
+    a.className = 'page-link';
+    a.href = '#';
+    a.innerText = label;
+    a.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (enabled) onClick();
+    });
+    li.appendChild(a);
+    paginationUl.appendChild(li);
+}
+
+searchInput.addEventListener('keyup', () => { currentPage = 1; updateTable(); });
+
 function openEditTeacherModal(data) {
     document.getElementById('edit_teac_id').value = data.teac_id;
     document.getElementById('edit_full_name').value = data.use_title + data.use_fname + ' ' + data.use_lname;
@@ -293,7 +364,6 @@ function openEditTeacherModal(data) {
     new bootstrap.Modal(document.getElementById('editTeacherModal')).show();
 }
 
-// ระบบเลือกทั้งหมด
 document.getElementById('selectAll').addEventListener('change', function() {
     const checkboxes = document.querySelectorAll('.row-checkbox');
     checkboxes.forEach(cb => {
@@ -302,7 +372,6 @@ document.getElementById('selectAll').addEventListener('change', function() {
     });
 });
 
-// ฟังก์ชันไฮไลท์แถวเมื่อเลือก
 document.querySelectorAll('.row-checkbox').forEach(cb => {
     cb.addEventListener('change', function() {
         toggleRowHighlight(this);
@@ -314,33 +383,24 @@ function toggleRowHighlight(cb) {
     else cb.closest('tr').classList.remove('selected-row');
 }
 
-// ฟังก์ชันหัวใจสำคัญ: พิมพ์เฉพาะที่เลือก
 function printSelectedOnly() {
     const rows = document.querySelectorAll('.teacher-row');
     let hasSelection = false;
-
     rows.forEach(row => {
         const checkbox = row.querySelector('.row-checkbox');
-        if (!checkbox.checked) {
-            row.classList.add('d-none-print'); // เพิ่ม Class เพื่อซ่อนใน @media print
-        } else {
-            hasSelection = true;
-            row.classList.remove('d-none-print');
-        }
+        if (!checkbox.checked) row.classList.add('d-none-print');
+        else { hasSelection = true; row.classList.remove('d-none-print'); }
     });
 
     if (!hasSelection) {
         alert("กรุณาเลือกข้อมูลอย่างน้อย 1 รายการเพื่อพิมพ์รายงาน");
         return;
     }
-
     window.print();
-
-    // หลังจากสั่งพิมพ์ (หรือยกเลิก) ให้เอา Class ซ่อนออก เพื่อให้หน้าเว็บกลับมาปกติ
-    setTimeout(() => {
-        rows.forEach(row => row.classList.remove('d-none-print'));
-    }, 500);
+    setTimeout(() => { rows.forEach(row => row.classList.remove('d-none-print')); }, 500);
 }
+
+document.addEventListener('DOMContentLoaded', updateTable);
 </script>
 </body>
 </html>

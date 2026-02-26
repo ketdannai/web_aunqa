@@ -50,9 +50,7 @@ unset($_SESSION["sec_success"]);
             --primary-navy: #003566;
         }
         body { font-family: 'Sarabun', sans-serif; background-color: #f4f6f9; margin: 0; }
-        
         .main-header { background-color: var(--accent-blue); color: white; padding: 15px 20px; z-index: 1000; position: relative; }
-
         .sidebar { width: 250px; background-color: var(--bg-dark); min-height: 100vh; flex-shrink: 0; }
         .sidebar .nav-link { 
             color: #f8f9fa; padding: 12px 15px; margin-bottom: 1px; 
@@ -61,7 +59,6 @@ unset($_SESSION["sec_success"]);
         }
         .sidebar .nav-link:hover { background-color: #495057; }
         .sidebar .nav-link.active { background-color: var(--sidebar-active); color: #212529; font-weight: 600; }
-
         .content { flex-grow: 1; padding: 40px; background-color: white; }
         h1 { font-family: 'Kanit'; font-weight: 600; color: var(--primary-navy); }
 
@@ -69,23 +66,26 @@ unset($_SESSION["sec_success"]);
             background-color: #f8f9fa; color: var(--primary-navy); 
             border: 1px solid #dee2e6; text-align: center; padding: 12px;
         }
-        /* บังคับ Text ในตารางเป็นสีดำ */
         .table-custom td { 
             border: 1px solid #dee2e6; 
             vertical-align: middle; 
             padding: 12px; 
             color: #000000 !important; 
         }
-        .table-custom td .fw-bold, .table-custom td small { color: #000000 !important; }
+
+        /* Pagination Style */
+        .pagination .page-link { color: var(--accent-blue); border-radius: 5px; margin: 0 2px; }
+        .pagination .page-item.active .page-link { background-color: var(--accent-blue); border-color: var(--accent-blue); color: white; }
 
         @media print {
-            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input { display: none !important; }
+            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input, .pagination-container, .search-container { display: none !important; }
             body { background: white; }
             .content { padding: 0; }
             .table-custom { border: 1px solid black !important; width: 100%; }
-            .table-custom th, .table-custom td { border: 1px solid black !important; color: black !important; }
+            .table-custom th, .table-custom td { border: 1px solid black !important; color: black !important; display: table-cell !important; }
             tr.d-none-print { display: none !important; }
             .print-header { display: block !important; text-align: center; margin-bottom: 20px; }
+            tr { display: table-row !important; }
         }
         .print-header { display: none; }
         .selected-row { background-color: #f0f7ff !important; }
@@ -147,6 +147,15 @@ unset($_SESSION["sec_success"]);
             </div>
         </div>
 
+        <div class="row mb-3 no-print search-container">
+            <div class="col-md-4 ms-auto">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="ค้นหาชื่อกลุ่ม, ปีการศึกษา, อาจารย์...">
+                </div>
+            </div>
+        </div>
+
         <?php if ($success_message): ?>
             <div class="alert alert-success border-0 shadow-sm no-print"><?php echo $success_message; ?></div>
         <?php endif; ?>
@@ -201,10 +210,16 @@ unset($_SESSION["sec_success"]);
                             </tr>
                             <?php endwhile; ?>
                         <?php else: ?>
-                            <tr><td colspan="6" class="text-center py-4 text-muted">ไม่พบข้อมูลกลุ่มเรียน</td></tr>
+                            <tr id="noDataRow"><td colspan="6" class="text-center py-4 text-muted">ไม่พบข้อมูลกลุ่มเรียน</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="d-flex justify-content-center mt-3 no-print pagination-container">
+                <nav>
+                    <ul class="pagination pagination-sm mb-0" id="paginationUl"></ul>
+                </nav>
             </div>
         </div>
     </main>
@@ -228,7 +243,7 @@ unset($_SESSION["sec_success"]);
                             <option value="">-- เลือกอาจารย์ที่ปรึกษา --</option>
                             <?php foreach($user_options as $opt): ?>
                                 <option value="<?php echo $opt['use_id']; ?>">
-                                    <?php echo $opt['use_title'].$opt['use_fname']." ".$opt['use_lname']; ?>
+                                    <?php echo $opt['use_title'].$opt['use_fname']." ".$u_lname = $opt['use_lname']; ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -263,6 +278,72 @@ unset($_SESSION["sec_success"]);
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    // --- ระบบค้นหาและแบ่งหน้า (เหมือน Course) ---
+    const table = document.getElementById('sectionTable');
+    const searchInput = document.getElementById('searchInput');
+    const paginationUl = document.getElementById('paginationUl');
+    const allRows = Array.from(table.querySelectorAll('tbody tr.data-row'));
+
+    let currentPage = 1;
+    const maxRows = 10; 
+
+    function updateTable() {
+        const filter = searchInput.value.toLowerCase();
+
+        // 1. กรองแถว
+        const filteredRows = allRows.filter(row => {
+            const text = row.textContent.toLowerCase();
+            const isMatch = text.includes(filter);
+            row.style.display = 'none';
+            return isMatch;
+        });
+
+        // 2. คำนวณหน้า
+        const totalRows = filteredRows.length;
+        const totalPages = Math.ceil(totalRows / maxRows);
+        
+        if (currentPage > totalPages) currentPage = 1;
+        
+        // 3. แสดงผล
+        const start = (currentPage - 1) * maxRows;
+        const end = start + maxRows;
+
+        filteredRows.slice(start, end).forEach(row => {
+            row.style.display = '';
+        });
+
+        renderPagination(totalPages);
+    }
+
+    function renderPagination(totalPages) {
+        paginationUl.innerHTML = '';
+        if (totalPages <= 1) return;
+
+        createPageItem('«', currentPage > 1, () => { currentPage--; updateTable(); });
+        for (let i = 1; i <= totalPages; i++) {
+            createPageItem(i, true, () => { currentPage = i; updateTable(); }, i === currentPage);
+        }
+        createPageItem('»', currentPage < totalPages, () => { currentPage++; updateTable(); });
+    }
+
+    function createPageItem(label, enabled, onClick, active = false) {
+        const li = document.createElement('li');
+        li.className = `page-item ${active ? 'active' : ''} ${!enabled ? 'disabled' : ''}`;
+        const a = document.createElement('a');
+        a.className = 'page-link';
+        a.href = '#';
+        a.innerText = label;
+        a.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (enabled) onClick();
+        });
+        li.appendChild(a);
+        paginationUl.appendChild(li);
+    }
+
+    searchInput.addEventListener('keyup', () => { currentPage = 1; updateTable(); });
+
+    // --- ฟังก์ชัน Modal และอื่นๆ ---
     const sectionModal = new bootstrap.Modal(document.getElementById('sectionModal'));
 
     function openSectionModal(mode, data = null) {
@@ -298,9 +379,10 @@ unset($_SESSION["sec_success"]);
 
     // ระบบเลือกพิมพ์
     document.getElementById('selectAll').addEventListener('change', function() {
-        document.querySelectorAll('.row-checkbox').forEach(cb => {
+        allRows.forEach(row => {
+            const cb = row.querySelector('.row-checkbox');
             cb.checked = this.checked;
-            cb.closest('tr').classList.toggle('selected-row', this.checked);
+            row.classList.toggle('selected-row', this.checked);
         });
     });
 
@@ -317,12 +399,13 @@ unset($_SESSION["sec_success"]);
             if (!row.querySelector('.row-checkbox').checked) row.classList.add('d-none-print');
             else { hasSelection = true; row.classList.remove('d-none-print'); }
         });
-        
         if (!hasSelection) { alert("กรุณาเลือกกลุ่มเรียนที่ต้องการพิมพ์"); return; }
-        
         window.print();
         setTimeout(() => { rows.forEach(row => row.classList.remove('d-none-print')); }, 500);
     }
+
+    // เริ่มต้นระบบเมื่อโหลดหน้าเสร็จ
+    document.addEventListener('DOMContentLoaded', updateTable);
 </script>
 </body>
 </html>

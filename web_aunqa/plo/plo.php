@@ -66,6 +66,11 @@ unset($_SESSION["plo_success"]);
         .content { flex-grow: 1; padding: 40px; background-color: white; }
         h1 { font-family: 'Kanit'; font-weight: 600; color: var(--primary-navy); }
 
+        /* Search Box Style */
+        .search-container .input-group-text { background-color: #fff; border-right: none; }
+        .search-container .form-control { border-left: none; }
+        .search-container .form-control:focus { box-shadow: none; border-color: #dee2e6; }
+
         .table-custom thead th { 
             background-color: #f8f9fa; color: var(--primary-navy); 
             border: 1px solid #dee2e6; text-align: center; padding: 12px; font-family: 'Kanit';
@@ -88,7 +93,7 @@ unset($_SESSION["plo_success"]);
         }
 
         @media print {
-            .sidebar, .main-header, .no-print, .btn, .alert, .form-check-input, .dropdown-toggle { display: none !important; }
+            .sidebar, .main-header, .no-print, .btn, .alert, .form-check-input, .dropdown-toggle, .search-container { display: none !important; }
             .content { padding: 0 !important; }
             .table-custom th { background-color: #eee !important; color: black !important; }
             .table-custom td, .table-custom th { border: 1px solid #000 !important; font-size: 11px; }
@@ -157,6 +162,17 @@ unset($_SESSION["plo_success"]);
             </div>
         </div>
 
+        <div class="row mb-3 no-print">
+            <div class="col-md-4 ms-auto">
+                <div class="input-group shadow-sm search-container">
+                    <span class="input-group-text bg-white border-end-0">
+                        <i class="bi bi-search text-muted"></i>
+                    </span>
+                    <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="ค้นหา PLO, ทักษะ, หรือ Bloom's...">
+                </div>
+            </div>
+        </div>
+
         <?php if ($success_message): ?>
             <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show no-print">
                 <i class="bi bi-check-circle-fill me-2"></i> <?php echo $success_message; ?>
@@ -177,52 +193,41 @@ unset($_SESSION["plo_success"]);
                             <th class="text-center no-print" style="width: 100px;">จัดการ</th>
                         </tr>
                     </thead>
-                   <tbody>
-    <?php if (!empty($plo_list)): ?>
-        <?php foreach ($plo_list as $plo): ?>
-            <tr class="plo-row">
-                <td class="text-center no-print">
-                    <input type="checkbox" class="row-checkbox form-check-input">
-                </td>
-                
-                <td class="fw-bold" style="color: #000;">
-                    <?php echo nl2br(htmlspecialchars($plo['plo_code'])); ?>
-                </td>
-                
-                <td class="small text-muted"><?php echo nl2br(htmlspecialchars($plo['plo_knowledge'] ?: '-')); ?></td>
-                <td class="small text-muted"><?php echo nl2br(htmlspecialchars($plo['plo_skill'] ?: '-')); ?></td>
-                
-                <td class="text-center" style="color: #000;">
-                    <?php 
-                        if($plo['plo_bty']){
-                            // แสดงผลเป็นข้อความปกติ คั่นด้วยเครื่องหมายคอมม่า
-                            echo htmlspecialchars($plo['plo_bty']);
-                        } else { 
-                            echo '-'; 
-                        }
-                    ?>
-                </td>
-                
-                <td class="text-center no-print">
-                    <?php if ($is_admin): ?>
-                        <div class="d-flex justify-content-center gap-1">
-                            <button class="btn btn-light btn-sm border" onclick='openPloModal("edit", <?php echo json_encode($plo); ?>)'>
-                                <i class="bi bi-pencil-fill text-warning"></i>
-                            </button>
-                            <a href="process_plo.php?delete=<?php echo $plo['plo_id']; ?>" class="btn btn-light btn-sm border" onclick="return confirm('ยืนยันการลบ PLO นี้?')">
-                                <i class="bi bi-trash-fill text-danger"></i>
-                            </a>
-                        </div>
-                    <?php else: ?>
-                        <i class="bi bi-lock-fill text-muted"></i>
-                    <?php endif; ?>
-                </td>
-            </tr>
-        <?php endforeach; ?>
-    <?php else: ?>
-        <tr><td colspan="6" class="text-center py-4 text-muted">ไม่พบข้อมูลในระบบ</td></tr>
-    <?php endif; ?>
-</tbody>
+                    <tbody>
+                        <?php if (!empty($plo_list)): ?>
+                            <?php foreach ($plo_list as $plo): ?>
+                                <tr class="plo-row">
+                                    <td class="text-center no-print">
+                                        <input type="checkbox" class="row-checkbox form-check-input">
+                                    </td>
+                                    <td class="fw-bold" style="color: #000;">
+                                        <?php echo nl2br(htmlspecialchars($plo['plo_code'])); ?>
+                                    </td>
+                                    <td class="small text-muted"><?php echo nl2br(htmlspecialchars($plo['plo_knowledge'] ?: '-')); ?></td>
+                                    <td class="small text-muted"><?php echo nl2br(htmlspecialchars($plo['plo_skill'] ?: '-')); ?></td>
+                                    <td class="text-center" style="color: #000;">
+                                        <?php echo htmlspecialchars($plo['plo_bty'] ?: '-'); ?>
+                                    </td>
+                                    <td class="text-center no-print">
+                                        <?php if ($is_admin): ?>
+                                            <div class="d-flex justify-content-center gap-1">
+                                                <button class="btn btn-light btn-sm border" onclick='openPloModal("edit", <?php echo json_encode($plo); ?>)'>
+                                                    <i class="bi bi-pencil-fill text-warning"></i>
+                                                </button>
+                                                <a href="process_plo.php?delete=<?php echo $plo['plo_id']; ?>" class="btn btn-light btn-sm border" onclick="return confirm('ยืนยันการลบ PLO นี้?')">
+                                                    <i class="bi bi-trash-fill text-danger"></i>
+                                                </a>
+                                            </div>
+                                        <?php else: ?>
+                                            <i class="bi bi-lock-fill text-muted"></i>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr><td colspan="6" class="text-center py-4 text-muted">ไม่พบข้อมูลในระบบ</td></tr>
+                        <?php endif; ?>
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -298,6 +303,17 @@ unset($_SESSION["plo_success"]);
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    // --- ระบบค้นหา Real-time ---
+    document.getElementById('searchInput').addEventListener('keyup', function() {
+        const value = this.value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#ploTable tbody tr.plo-row');
+
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(value) ? "" : "none";
+        });
+    });
+
     const ploModal = new bootstrap.Modal(document.getElementById('ploModal'));
 
     function openPloModal(mode, data = null) {
@@ -351,7 +367,6 @@ unset($_SESSION["plo_success"]);
     document.getElementById('selectAll').addEventListener('change', function() {
         document.querySelectorAll('.row-checkbox').forEach(cb => {
             cb.checked = this.checked;
-            cb.closest('tr').style.backgroundColor = this.checked ? '#f8f9ff' : '';
         });
     });
 
@@ -376,7 +391,6 @@ unset($_SESSION["plo_success"]);
 
         window.print();
         
-        // คืนสถานะการแสดงผล
         setTimeout(() => {
             rows.forEach(row => row.classList.remove('d-none-print'));
         }, 500);

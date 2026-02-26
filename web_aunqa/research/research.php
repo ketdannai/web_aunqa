@@ -65,11 +65,15 @@ unset($_SESSION["res_success"]);
         }
         .table-custom td { border: 1px solid #dee2e6; vertical-align: middle; padding: 12px; color: #000; }
         
+        /* Pagination Style */
+        .pagination .page-link { color: var(--primary-navy); }
+        .pagination .page-item.active .page-link { background-color: var(--primary-navy); border-color: var(--primary-navy); }
+
         .budget-text { color: #000; font-weight: 600; font-family: 'monospace'; }
         .author-list { font-size: 0.85rem; color: #000; line-height: 1.4; }
 
         @media print {
-            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input { display: none !important; }
+            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input, .pagination-container, .search-container { display: none !important; }
             body { background: white; }
             .content { padding: 0 !important; }
             .table-custom { border: 1px solid black !important; width: 100%; }
@@ -136,6 +140,15 @@ unset($_SESSION["res_success"]);
             </div>
         </div>
 
+        <div class="row mb-3 no-print search-container">
+            <div class="col-md-4 ms-auto">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="ค้นหาชื่องานวิจัย, ผู้วิจัย, แหล่งทุน...">
+                </div>
+            </div>
+        </div>
+
         <?php if ($success_message): ?>
             <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show no-print">
                 <i class="bi bi-check-circle-fill me-2"></i> <?php echo $success_message; ?>
@@ -157,7 +170,7 @@ unset($_SESSION["res_success"]);
                             <th class="text-center no-print" style="width: 100px;">จัดการ</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="researchTableBody">
                         <?php if (count($research_list) > 0): ?>
                             <?php foreach ($research_list as $res): 
                                 $is_owner = ($res['use_id'] == $logged_in_user_id);
@@ -168,7 +181,7 @@ unset($_SESSION["res_success"]);
                                     }
                                 }
                             ?>
-                                <tr class="research-row">
+                                <tr class="research-row data-row">
                                     <td class="text-center no-print"><input type="checkbox" class="row-checkbox form-check-input"></td>
                                     <td class="fw-bold" style="color: #000;"><?php echo htmlspecialchars($res['res_name']); ?></td>
                                     <td class="author-list"><?php echo implode("<br>", $authors); ?></td>
@@ -195,10 +208,17 @@ unset($_SESSION["res_success"]);
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <tr><td colspan="7" class="text-center py-4 text-muted">ยังไม่มีข้อมูลงานวิจัย</td></tr>
+                            <tr id="noDataRow"><td colspan="7" class="text-center py-4 text-muted">ยังไม่มีข้อมูลงานวิจัย</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3 no-print pagination-container">
+                <div class="small text-muted" id="rowCountInfo"></div>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0" id="paginationUl"></ul>
+                </nav>
             </div>
         </div>
     </main>
@@ -273,6 +293,92 @@ unset($_SESSION["res_success"]);
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    // --- ระบบค้นหาและแบ่งหน้า (Search & Pagination) ---
+    const searchInput = document.getElementById('searchInput');
+    const tableBody = document.getElementById('researchTableBody');
+    const rowCountInfo = document.getElementById('rowCountInfo');
+    const paginationUl = document.getElementById('paginationUl');
+    const allDataRows = Array.from(document.querySelectorAll('.data-row'));
+
+    let currentPage = 1;
+    const rowsPerPage = 10;
+
+    function filterAndDisplay() {
+        const searchTerm = searchInput.value.toLowerCase();
+        
+        // กรองแถวที่ตรงกับคำค้นหา
+        const filteredRows = allDataRows.filter(row => {
+            return row.textContent.toLowerCase().includes(searchTerm);
+        });
+
+        const totalFiltered = filteredRows.length;
+        const totalPages = Math.ceil(totalFiltered / rowsPerPage);
+
+        // ซ่อนทุกแถวก่อน
+        allDataRows.forEach(row => row.style.display = 'none');
+
+        // แสดงเฉพาะแถวในหน้านั้น
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        const rowsToShow = filteredRows.slice(start, end);
+
+        rowsToShow.forEach(row => row.style.display = '');
+
+        // แสดงผลกรณีไม่พบข้อมูล
+        const noDataRow = document.getElementById('noDataRow');
+        if (totalFiltered === 0) {
+            if (!noDataRow) {
+                const tr = document.createElement('tr');
+                tr.id = 'noDataRow';
+                tr.innerHTML = `<td colspan="7" class="text-center py-4 text-muted">ไม่พบข้อมูลที่ค้นหา</td>`;
+                tableBody.appendChild(tr);
+            } else { noDataRow.style.display = ''; }
+        } else if (noDataRow) {
+            noDataRow.style.display = 'none';
+        }
+
+        rowCountInfo.innerText = `แสดง ${rowsToShow.length} จากทั้งหมด ${totalFiltered} รายการ`;
+        renderPagination(totalPages);
+    }
+
+    function renderPagination(totalPages) {
+        paginationUl.innerHTML = '';
+        if (totalPages <= 1) return;
+
+        // ปุ่มก่อนหน้า
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+        prevLi.innerHTML = `<a class="page-link" href="#">ก่อนหน้า</a>`;
+        prevLi.onclick = (e) => { e.preventDefault(); if(currentPage > 1) { currentPage--; filterAndDisplay(); } };
+        paginationUl.appendChild(prevLi);
+
+        // ปุ่มตัวเลข
+        for (let i = 1; i <= totalPages; i++) {
+            const li = document.createElement('li');
+            li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+            li.onclick = (e) => { e.preventDefault(); currentPage = i; filterAndDisplay(); };
+            paginationUl.appendChild(li);
+        }
+
+        // ปุ่มถัดไป
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+        nextLi.innerHTML = `<a class="page-link" href="#">ถัดไป</a>`;
+        nextLi.onclick = (e) => { e.preventDefault(); if(currentPage < totalPages) { currentPage++; filterAndDisplay(); } };
+        paginationUl.appendChild(nextLi);
+    }
+
+    searchInput.addEventListener('input', () => {
+        currentPage = 1;
+        filterAndDisplay();
+    });
+
+    // เรียกทำงานครั้งแรก
+    document.addEventListener('DOMContentLoaded', filterAndDisplay);
+
+
+    // --- ระบบ Modal และ Print (เหมือนเดิม) ---
     const resModal = new bootstrap.Modal(document.getElementById('resModal'));
     
     function openResModal(mode, data = null) {
@@ -323,7 +429,6 @@ unset($_SESSION["res_success"]);
     function printSelectedResearch() {
         const rows = document.querySelectorAll('.research-row');
         let selected = false;
-        
         rows.forEach(row => {
             const checkbox = row.querySelector('.row-checkbox');
             if (!checkbox.checked) {
@@ -333,17 +438,9 @@ unset($_SESSION["res_success"]);
                 row.classList.remove('d-none-print');
             }
         });
-
-        if (!selected) {
-            alert("กรุณาเลือกงานวิจัยที่ต้องการพิมพ์");
-            return;
-        }
-
+        if (!selected) { alert("กรุณาเลือกงานวิจัยที่ต้องการพิมพ์"); return; }
         window.print();
-
-        setTimeout(() => {
-            rows.forEach(row => row.classList.remove('d-none-print'));
-        }, 500);
+        setTimeout(() => { rows.forEach(row => row.classList.remove('d-none-print')); }, 500);
     }
 </script>
 </body>

@@ -48,9 +48,7 @@ unset($_SESSION["art_success"]);
         }
 
         body { font-family: 'Sarabun', sans-serif; background-color: #f4f6f9; margin: 0; }
-        
         .main-header { background-color: var(--accent-blue); color: white; padding: 15px 20px; z-index: 1000; position: relative; }
-
         .sidebar { width: 250px; background-color: var(--bg-dark); min-height: 100vh; flex-shrink: 0; }
         .sidebar .nav-link { 
             color: #f8f9fa; padding: 12px 15px; margin-bottom: 1px; 
@@ -59,11 +57,9 @@ unset($_SESSION["art_success"]);
         }
         .sidebar .nav-link:hover { background-color: #495057; }
         .sidebar .nav-link.active { background-color: var(--sidebar-active); color: #212529; font-weight: 600; }
-
         .content { flex-grow: 1; padding: 40px; background-color: white; }
         h1 { font-family: 'Kanit'; font-weight: 600; color: var(--primary-navy); }
 
-        /* จัดการสไตล์ตารางและสีตัวอักษร */
         .table-custom thead th { 
             background-color: #f8f9fa; color: var(--primary-navy); 
             border: 1px solid #dee2e6; text-align: center; padding: 12px; font-family: 'Kanit';
@@ -72,22 +68,18 @@ unset($_SESSION["art_success"]);
             border: 1px solid #dee2e6; 
             vertical-align: middle; 
             padding: 12px; 
-            color: #000000 !important; /* บังคับให้เป็นสีดำเข้ม */
-        }
-        
-        /* สีดำสำหรับทุกลิงก์และข้อความในตาราง */
-        .table-custom td a, 
-        .table-custom td span, 
-        .table-custom .author-text,
-        .table-custom .fw-bold {
             color: #000000 !important;
         }
+        
+        /* Pagination Style */
+        .pagination .page-link { color: var(--accent-blue); border-radius: 5px; margin: 0 2px; }
+        .pagination .page-item.active .page-link { background-color: var(--accent-blue); border-color: var(--accent-blue); color: white; }
 
-        .author-text { font-size: 0.85rem; line-height: 1.4; }
+        .author-text { font-size: 0.85rem; line-height: 1.4; color: #000000 !important; }
         .evidence-link { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 
         @media print {
-            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input { display: none !important; }
+            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input, .pagination-container, .search-container { display: none !important; }
             body { background: white; }
             .content { padding: 0; }
             .table-custom { border: 1px solid black !important; width: 100%; }
@@ -155,6 +147,15 @@ unset($_SESSION["art_success"]);
                 </div>
             </div>
 
+            <div class="row mb-3 no-print search-container">
+                <div class="col-md-4 ms-auto">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="ค้นหาชื่อบทความ, ผู้เขียน, ประเภท...">
+                    </div>
+                </div>
+            </div>
+
             <?php if ($success_message): ?>
                 <div class="alert alert-success border-0 shadow-sm no-print alert-dismissible fade show">
                     <i class="bi bi-check-circle-fill me-2"></i> <?php echo $success_message; ?>
@@ -170,7 +171,8 @@ unset($_SESSION["art_success"]);
                                 <th class="no-print" style="width: 45px;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
                                 <th style="width: 30%;">ชื่อบทความ</th>
                                 <th style="width: 15%;">ประเภท</th>
-                                <th style="width: 15%;">ผู้เขียน/ผู้ทำ</th> <th style="width: 20%;">แหล่งเผยแพร่</th>
+                                <th style="width: 15%;">ผู้เขียน/ผู้ทำ</th> 
+                                <th style="width: 20%;">แหล่งเผยแพร่</th>
                                 <th style="width: 10%;">หลักฐาน</th>
                                 <th class="text-center no-print" style="width: 100px;">จัดการ</th>
                             </tr>
@@ -186,7 +188,7 @@ unset($_SESSION["art_success"]);
                                         }
                                     }
                                 ?>
-                                <tr class="article-row">
+                                <tr class="article-row data-row">
                                     <td class="text-center no-print"><input type="checkbox" class="row-checkbox form-check-input"></td>
                                     <td class="fw-bold"><?php echo htmlspecialchars($art['art_name']); ?></td>
                                     <td class="text-center small"><?php echo htmlspecialchars($art['art_type']); ?></td>
@@ -216,10 +218,16 @@ unset($_SESSION["art_success"]);
                                 </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr><td colspan="7" class="text-center py-4 text-muted">ไม่พบข้อมูลบทความในระบบ</td></tr>
+                                <tr id="noDataRow"><td colspan="7" class="text-center py-4 text-muted">ไม่พบข้อมูลบทความในระบบ</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
+                </div>
+
+                <div class="d-flex justify-content-center mt-3 no-print pagination-container">
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="paginationUl"></ul>
+                    </nav>
                 </div>
             </div>
         </main>
@@ -283,6 +291,77 @@ unset($_SESSION["art_success"]);
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // --- ระบบค้นหาและแบ่งหน้า (Search & Pagination) ---
+        const table = document.getElementById('articleTable');
+        const searchInput = document.getElementById('searchInput');
+        const paginationUl = document.getElementById('paginationUl');
+        const allRows = Array.from(table.querySelectorAll('tbody tr.data-row'));
+
+        let currentPage = 1;
+        const maxRows = 10; 
+
+        function updateTable() {
+            const filter = searchInput.value.toLowerCase();
+
+            // 1. กรองข้อมูล
+            const filteredRows = allRows.filter(row => {
+                const text = row.textContent.toLowerCase();
+                const isMatch = text.includes(filter);
+                row.style.display = 'none';
+                return isMatch;
+            });
+
+            // 2. คำนวณการแบ่งหน้า
+            const totalRows = filteredRows.length;
+            const totalPages = Math.ceil(totalRows / maxRows);
+            
+            if (currentPage > totalPages) currentPage = 1;
+            
+            const start = (currentPage - 1) * maxRows;
+            const end = start + maxRows;
+
+            // 3. แสดงเฉพาะแถวในหน้านั้น
+            filteredRows.slice(start, end).forEach(row => {
+                row.style.display = '';
+            });
+
+            // 4. สร้างปุ่ม Pagination
+            renderPagination(totalPages);
+        }
+
+        function renderPagination(totalPages) {
+            paginationUl.innerHTML = '';
+            if (totalPages <= 1) return;
+
+            // ปุ่มย้อนกลับ
+            createPageItem('«', currentPage > 1, () => { currentPage--; updateTable(); });
+
+            for (let i = 1; i <= totalPages; i++) {
+                createPageItem(i, true, () => { currentPage = i; updateTable(); }, i === currentPage);
+            }
+
+            // ปุ่มถัดไป
+            createPageItem('»', currentPage < totalPages, () => { currentPage++; updateTable(); });
+        }
+
+        function createPageItem(label, enabled, onClick, active = false) {
+            const li = document.createElement('li');
+            li.className = `page-item ${active ? 'active' : ''} ${!enabled ? 'disabled' : ''}`;
+            const a = document.createElement('a');
+            a.className = 'page-link';
+            a.href = '#';
+            a.innerText = label;
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (enabled) onClick();
+            });
+            li.appendChild(a);
+            paginationUl.appendChild(li);
+        }
+
+        searchInput.addEventListener('keyup', () => { currentPage = 1; updateTable(); });
+
+        // --- ระบบ Modal ---
         const artModal = new bootstrap.Modal(document.getElementById('artModal'));
 
         function openArtModal(mode, data = null) {
@@ -315,6 +394,7 @@ unset($_SESSION["art_success"]);
             artModal.show();
         }
 
+        // --- ระบบเลือกพิมพ์ ---
         document.getElementById('selectAll').addEventListener('change', function() {
             document.querySelectorAll('.row-checkbox').forEach(cb => {
                 cb.checked = this.checked;
@@ -334,6 +414,9 @@ unset($_SESSION["art_success"]);
             window.print();
             setTimeout(() => { rows.forEach(row => row.classList.remove('d-none-print')); }, 500);
         }
+
+        // เริ่มต้นตาราง
+        document.addEventListener('DOMContentLoaded', updateTable);
     </script>
 </body>
 </html>

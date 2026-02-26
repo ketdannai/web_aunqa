@@ -107,6 +107,11 @@ unset($_SESSION["clo_success"]);
             color: var(--primary-navy);
         }
 
+        /* Search Box Style */
+        .search-container .input-group-text { background-color: #fff; border-right: none; }
+        .search-container .form-control { border-left: none; }
+        .search-container .form-control:focus { box-shadow: none; border-color: #dee2e6; }
+
         .table-custom thead th {
             background-color: #f8f9fa;
             color: var(--primary-navy);
@@ -137,54 +142,24 @@ unset($_SESSION["clo_success"]);
         }
 
         @media print {
-
-            .sidebar,
-            .main-header,
-            .no-print,
-            .btn,
-            .alert,
-            .modal,
-            .dropdown,
-            .ts-wrapper {
+            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .dropdown, .ts-wrapper, .search-container {
                 display: none !important;
             }
 
-            body {
-                background: white;
-            }
-
-            .content {
-                padding: 0;
-            }
-
-            .table-custom {
-                border: 1px solid black !important;
-                width: 100%;
-                table-layout: fixed;
-            }
-
-            .table-custom th,
-            .table-custom td {
+            body { background: white; }
+            .content { padding: 0; }
+            .table-custom { border: 1px solid black !important; width: 100%; table-layout: fixed; }
+            .table-custom th, .table-custom td {
                 border: 1px solid black !important;
                 color: black !important;
                 font-size: 12px;
                 word-wrap: break-word;
             }
-
-            tr.d-none-print {
-                display: none !important;
-            }
-
-            .print-header {
-                display: block !important;
-                text-align: center;
-                margin-bottom: 20px;
-            }
+            tr.d-none-print { display: none !important; }
+            .print-header { display: block !important; text-align: center; margin-bottom: 20px; }
         }
 
-        .print-header {
-            display: none;
-        }
+        .print-header { display: none; }
     </style>
 </head>
 
@@ -240,6 +215,17 @@ unset($_SESSION["clo_success"]);
                             <li><a class="dropdown-item" href="#" onclick="window.print()"><i class="bi bi-file-earmark-pdf me-2"></i>พิมพ์ทั้งหมด</a></li>
                             <li><a class="dropdown-item" href="#" onclick="printSelectedClo()"><i class="bi bi-check-square me-2"></i>พิมพ์เฉพาะที่เลือก</a></li>
                         </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-3 no-print">
+                <div class="col-md-4 ms-auto">
+                    <div class="input-group shadow-sm search-container">
+                        <span class="input-group-text bg-white border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="ค้นหารหัสวิชา, ชื่อวิชา, CLO หรือ PLO...">
                     </div>
                 </div>
             </div>
@@ -362,6 +348,17 @@ unset($_SESSION["clo_success"]);
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>
+        // --- ระบบค้นหา Real-time ---
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            const value = this.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#cloTable tbody tr.clo-row');
+
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                row.style.display = text.includes(value) ? "" : "none";
+            });
+        });
+
         const courseSelector = new TomSelect("#cloCourseId", {
             create: false,
             sortField: {

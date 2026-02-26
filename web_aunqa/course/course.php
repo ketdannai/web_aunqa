@@ -52,11 +52,7 @@ unset($_SESSION["course_success"]);
             --primary-navy: #003566;
         }
         body { font-family: 'Sarabun', sans-serif; background-color: #f4f6f9; margin: 0; }
-        
-        /* Header */
         .main-header { background-color: var(--accent-blue); color: white; padding: 15px 20px; z-index: 1000; position: relative; }
-
-        /* Sidebar */
         .sidebar { width: 250px; background-color: var(--bg-dark); min-height: 100vh; flex-shrink: 0; }
         .sidebar .nav-link { 
             color: #f8f9fa; padding: 12px 15px; margin-bottom: 1px; 
@@ -65,27 +61,28 @@ unset($_SESSION["course_success"]);
         }
         .sidebar .nav-link:hover { background-color: #495057; }
         .sidebar .nav-link.active { background-color: var(--sidebar-active); color: #212529; font-weight: 600; }
-
-        /* Content */
         .content { flex-grow: 1; padding: 40px; background-color: white; }
         h1 { font-family: 'Kanit'; font-weight: 600; color: var(--primary-navy); }
 
-        /* Table Style */
         .table-custom thead th { 
             background-color: #f8f9fa; color: var(--primary-navy); 
             border: 1px solid #dee2e6; text-align: center; padding: 12px;
         }
         .table-custom td { border: 1px solid #dee2e6; vertical-align: middle; padding: 12px; }
 
-        /* Print Logic */
+        /* Pagination Style */
+        .pagination .page-link { color: var(--accent-blue); border-radius: 5px; margin: 0 2px; }
+        .pagination .page-item.active .page-link { background-color: var(--accent-blue); border-color: var(--accent-blue); color: white; }
+
         @media print {
-            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input { display: none !important; }
+            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input, .pagination-container, .search-container { display: none !important; }
             body { background: white; }
             .content { padding: 0; }
             .table-custom { border: 1px solid black !important; width: 100%; }
-            .table-custom th, .table-custom td { border: 1px solid black !important; color: black !important; }
+            .table-custom th, .table-custom td { border: 1px solid black !important; color: black !important; display: table-cell !important; }
             tr.d-none-print { display: none !important; }
             .print-header { display: block !important; text-align: center; margin-bottom: 20px; }
+            tr { display: table-row !important; }
         }
         .print-header { display: none; }
         .selected-row { background-color: #fff9db !important; }
@@ -147,6 +144,15 @@ unset($_SESSION["course_success"]);
             </div>
         </div>
 
+        <div class="row mb-3 no-print search-container">
+            <div class="col-md-4 ms-auto">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="ค้นหาชื่อวิชา, รหัสวิชา, หมวด...">
+                </div>
+            </div>
+        </div>
+
         <?php if ($success_message): ?>
             <div class="alert alert-success no-print border-0 shadow-sm"><?php echo $success_message; ?></div>
         <?php endif; ?>
@@ -156,7 +162,7 @@ unset($_SESSION["course_success"]);
                 <table class="table table-bordered table-custom align-middle" id="courseTable">
                     <thead>
                         <tr>
-                            <th class="no-print" style="width: 40px;">
+                            <th class="no-print" style="width: 40px; text-align: center;">
                                 <input type="checkbox" id="selectAll" class="form-check-input">
                             </th>
                             <th style="width: 120px;">รหัสวิชา</th>
@@ -196,6 +202,12 @@ unset($_SESSION["course_success"]);
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="d-flex justify-content-center mt-3 no-print pagination-container">
+                <nav>
+                    <ul class="pagination pagination-sm mb-0" id="paginationUl"></ul>
+                </nav>
             </div>
         </div>
     </main>
@@ -255,6 +267,73 @@ unset($_SESSION["course_success"]);
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// --- ระบบตาราง ค้นหา และ แบ่งหน้า ---
+const table = document.getElementById('courseTable');
+const searchInput = document.getElementById('searchInput');
+const paginationUl = document.getElementById('paginationUl');
+const allRows = Array.from(table.querySelectorAll('tbody tr'));
+
+let currentPage = 1;
+const maxRows = 10; // แสดง 10 รายการต่อหน้า
+
+function updateTable() {
+    const filter = searchInput.value.toLowerCase();
+
+    // 1. กรองแถวตามคำค้นหา
+    const filteredRows = allRows.filter(row => {
+        const text = row.textContent.toLowerCase();
+        const isMatch = text.includes(filter);
+        row.style.display = 'none';
+        return isMatch;
+    });
+
+    // 2. คำนวณหน้า
+    const totalRows = filteredRows.length;
+    const totalPages = Math.ceil(totalRows / maxRows);
+    
+    if (currentPage > totalPages) currentPage = 1;
+    if (currentPage < 1) currentPage = 1;
+
+    // 3. แสดงเฉพาะแถวในหน้านั้น
+    const start = (currentPage - 1) * maxRows;
+    const end = start + maxRows;
+
+    filteredRows.slice(start, end).forEach(row => {
+        row.style.display = '';
+    });
+
+    renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+    paginationUl.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    createPageItem('«', currentPage > 1, () => { currentPage--; updateTable(); });
+    for (let i = 1; i <= totalPages; i++) {
+        createPageItem(i, true, () => { currentPage = i; updateTable(); }, i === currentPage);
+    }
+    createPageItem('»', currentPage < totalPages, () => { currentPage++; updateTable(); });
+}
+
+function createPageItem(label, enabled, onClick, active = false) {
+    const li = document.createElement('li');
+    li.className = `page-item ${active ? 'active' : ''} ${!enabled ? 'disabled' : ''}`;
+    const a = document.createElement('a');
+    a.className = 'page-link';
+    a.href = '#';
+    a.innerText = label;
+    a.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (enabled) onClick();
+    });
+    li.appendChild(a);
+    paginationUl.appendChild(li);
+}
+
+searchInput.addEventListener('keyup', () => { currentPage = 1; updateTable(); });
+
+// --- ฟังก์ชัน Modal และอื่นๆ ---
 const bModal = new bootstrap.Modal(document.getElementById('courseModal'));
 
 function openCourseModal(mode, data = null) {
@@ -290,7 +369,6 @@ function openCourseModal(mode, data = null) {
     bModal.show();
 }
 
-// Logic พิมพ์เฉพาะที่เลือก
 document.getElementById('selectAll').addEventListener('change', function() {
     document.querySelectorAll('.row-checkbox').forEach(cb => {
         cb.checked = this.checked;
@@ -315,6 +393,9 @@ function printSelectedOnly() {
     window.print();
     setTimeout(() => { rows.forEach(row => row.classList.remove('d-none-print')); }, 500);
 }
+
+// เริ่มต้นเรียกใช้งานตาราง
+document.addEventListener('DOMContentLoaded', updateTable);
 </script>
 </body>
 </html>

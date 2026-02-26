@@ -80,6 +80,11 @@ unset($_SESSION["serv_success"]);
         .content { flex-grow: 1; padding: 40px; background-color: white; min-height: 100vh; }
         h1 { font-family: 'Kanit'; font-weight: 600; color: var(--primary-navy); }
 
+        /* Search Box Style */
+        .search-container .input-group-text { background-color: #fff; border-right: none; }
+        .search-container .form-control { border-left: none; }
+        .search-container .form-control:focus { box-shadow: none; border-color: #dee2e6; }
+
         .table-custom thead th { 
             background-color: #f8f9fa; color: var(--primary-navy); 
             border: 1px solid #dee2e6; text-align: center; padding: 12px; font-family: 'Kanit';
@@ -99,7 +104,7 @@ unset($_SESSION["serv_success"]);
         }
 
         @media print {
-            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input { display: none !important; }
+            .sidebar, .main-header, .no-print, .btn, .alert, .modal, .form-check-input, .search-container { display: none !important; }
             body { background: white; }
             .content { padding: 0; }
             .table-custom { border: 1px solid black !important; width: 100%; }
@@ -164,6 +169,17 @@ unset($_SESSION["serv_success"]);
                             <li><a class="dropdown-item" href="#" onclick="window.print()"><i class="bi bi-file-earmark-pdf me-2"></i>พิมพ์ทั้งหมด</a></li>
                             <li><a class="dropdown-item" href="#" onclick="printSelectedServices()"><i class="bi bi-check-square me-2"></i>พิมพ์เฉพาะที่เลือก</a></li>
                         </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-3 no-print">
+                <div class="col-md-4 ms-auto">
+                    <div class="input-group shadow-sm search-container">
+                        <span class="input-group-text bg-white border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="ค้นหาชื่องาน หรือ ชื่อผู้รับผิดชอบ...">
                     </div>
                 </div>
             </div>
@@ -300,6 +316,17 @@ unset($_SESSION["serv_success"]);
     <script>
         const serviceModal = new bootstrap.Modal(document.getElementById('serviceModal'));
         const imageModal = new bootstrap.Modal(document.getElementById('imageModal'));
+
+        // --- ระบบค้นหา Real-time ---
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            const value = this.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#serviceTable tbody tr.service-row');
+
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                row.style.display = text.includes(value) ? "" : "none";
+            });
+        });
 
         function viewFullImage(src) {
             document.getElementById('fullResImage').src = src;

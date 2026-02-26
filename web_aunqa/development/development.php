@@ -37,10 +37,14 @@ if ($result = $link->query($sql)) {
     $result->free();
 }
 
-// 4. ดึงรายชื่อกลุ่มเรียน (สำหรับ Dropdown ใน Modal)
+// 4. ดึงรายชื่อกลุ่มเรียน (สร้าง Array เก็บไว้ก่อนเพื่อใช้ซ้ำใน Loop)
+$sections_options = [];
 $sections_res = $link->query("SELECT section_id, section_name FROM section ORDER BY section_name ASC");
+while($s_row = $sections_res->fetch_assoc()){
+    $sections_options[] = $s_row;
+}
 
-// 5. ดึงรายชื่อ User สำหรับ Admin เปลี่ยนเจ้าของงาน
+// 5. ดึงรายชื่อ User สำหรับ Admin
 $user_options = [];
 if ($is_admin) {
     $sql_users = "SELECT use_id, use_title, use_fname, use_lname FROM users ORDER BY use_fname ASC";
@@ -89,6 +93,10 @@ unset($_SESSION["dev_success"]);
         .content { flex-grow: 1; padding: 40px; background-color: white; }
         h1 { font-family: 'Kanit'; font-weight: 600; color: var(--primary-navy); }
 
+        .search-container .input-group-text { background-color: #fff; border-right: none; }
+        .search-container .form-control { border-left: none; }
+        .search-container .form-control:focus { box-shadow: none; border-color: #dee2e6; }
+
         .table-custom thead th { 
             background-color: #f8f9fa; color: var(--primary-navy); 
             border: 1px solid #dee2e6; text-align: center; padding: 12px; font-family: 'Kanit';
@@ -103,7 +111,7 @@ unset($_SESSION["dev_success"]);
         .sec-badge { background-color: #e9ecef; color: #495057; border-radius: 4px; padding: 2px 8px; font-size: 0.8rem; margin-bottom: 3px; display: inline-block; border: 1px solid #ced4da; }
 
         @media print {
-            .sidebar, .main-header, .no-print, .btn, .alert, .form-check-input, .dropdown-toggle { display: none !important; }
+            .sidebar, .main-header, .no-print, .btn, .alert, .form-check-input, .dropdown-toggle, .search-container { display: none !important; }
             body { background: white; }
             .content { padding: 0 !important; }
             .table-custom th { background-color: #eee !important; color: black !important; }
@@ -119,7 +127,7 @@ unset($_SESSION["dev_success"]);
 <div class="main-header no-print">
     <div class="d-flex justify-content-between align-items-center">
         <p class="mb-0">ยินดีต้อนรับ: <?php echo $full_name; ?></p>
-        <a href="../login/logout.php" class="btn btn-sm btn-light fw-bold">logout</a>
+        <a href="../login/logout.php" class="btn btn-sm btn-light fw-bold text-primary">logout</a>
     </div>
 </div>
 
@@ -166,6 +174,17 @@ unset($_SESSION["dev_success"]);
                         <li><a class="dropdown-item" href="#" onclick="window.print()"><i class="bi bi-file-earmark-pdf me-2"></i>พิมพ์ทั้งหมด</a></li>
                         <li><a class="dropdown-item" href="#" onclick="printSelectedDev()"><i class="bi bi-check-square me-2"></i>พิมพ์เฉพาะที่เลือก</a></li>
                     </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-3 no-print">
+            <div class="col-md-4 ms-auto">
+                <div class="input-group shadow-sm search-container">
+                    <span class="input-group-text bg-white border-end-0">
+                        <i class="bi bi-search text-muted"></i>
+                    </span>
+                    <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="ค้นหาชื่อโครงการ, อาจารย์, หรือกลุ่มเรียน...">
                 </div>
             </div>
         </div>
@@ -252,77 +271,78 @@ unset($_SESSION["dev_success"]);
     </main>
 </div>
 
-<div class="modal fade" id="devModal" tabindex="-1">
+<div class="modal fade" id="devModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
-        <form action="process_development.php" method="POST" enctype="multipart/form-data" class="modal-content border-0 shadow">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title fw-bold" id="devModalTitle">ข้อมูลพัฒนานักศึกษา</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-4">
-                <input type="hidden" name="action" id="devAction" value="add">
-                <input type="hidden" name="dev_id" id="devId">
-
-                <div class="row g-3 mb-4">
-                    <?php if($is_admin): ?>
-                    <div class="col-12">
-                        <label class="form-label fw-bold">ผู้รับผิดชอบงาน</label>
-                        <select name="use_id" id="devUserId" class="form-select">
-                            <?php foreach($user_options as $opt): ?>
-                                <option value="<?php echo $opt['use_id']; ?>"><?php echo $opt['use_title'].$opt['use_fname']." ".$opt['use_lname']; ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <?php else: ?>
-                        <input type="hidden" name="use_id" value="<?php echo $logged_in_user_id; ?>">
-                    <?php endif; ?>
-
-                    <div class="col-12">
-                        <label class="form-label fw-bold">ชื่องาน/โครงการ/กิจกรรม</label>
-                        <input type="text" name="dev_name" id="devName" class="form-control" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">วันที่ดำเนินการ</label>
-                        <input type="text" name="dev_date" id="devDate" class="form-control" placeholder="เช่น 19 ก.พ. 2569" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">สถานที่</label>
-                        <input type="text" name="dev_at" id="devAt" class="form-control" required>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label fw-bold">วัตถุประสงค์ / รายละเอียด</label>
-                        <textarea name="dev_obj" id="devObj" class="form-control" rows="3"></textarea>
-                    </div>
+        <form action="process_development.php" method="POST" enctype="multipart/form-data">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold" id="devModalTitle">จัดการข้อมูลพัฒนานักศึกษา</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-
-                <div class="bg-light p-3 rounded-3 border mb-4">
-                    <h6 class="fw-bold mb-3"><i class="bi bi-people-fill me-2 text-primary"></i>กลุ่มเรียนที่เข้าร่วม (สูงสุด 5 กลุ่ม)</h6>
-                    <?php for($i=1; $i<=5; $i++): ?>
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-8">
-                                <select name="section_id<?php echo $i; ?>" id="devSection<?php echo $i; ?>" class="form-select form-select-sm">
-                                    <option value="">-- เลือกกลุ่มเรียน --</option>
-                                    <?php $sections_res->data_seek(0);
-                                    while ($s = $sections_res->fetch_assoc()): ?>
-                                        <option value="<?php echo $s['section_id']; ?>"><?php echo htmlspecialchars($s['section_name']); ?></option>
-                                    <?php endwhile; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <input type="number" name="count_id<?php echo $i; ?>" id="devCount<?php echo $i; ?>" class="form-control form-control-sm" placeholder="จำนวนนักศึกษา">
-                            </div>
+                <div class="modal-body">
+                    <input type="hidden" name="action" id="devAction" value="add">
+                    <input type="hidden" name="dev_id" id="devId">
+                    
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">ชื่อโครงการ/กิจกรรม</label>
+                            <input type="text" name="dev_name" id="devName" class="form-control" required>
                         </div>
-                    <?php endfor; ?>
-                </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">วัน/เวลา</label>
+                            <input type="text" name="dev_date" id="devDate" class="form-control" placeholder="เช่น 25 ก.พ. 67 เวลา 09:00" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">สถานที่</label>
+                            <input type="text" name="dev_at" id="devAt" class="form-control" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">วัตถุประสงค์</label>
+                            <textarea name="dev_obj" id="devObj" class="form-control" rows="2"></textarea>
+                        </div>
+                        
+                        <div class="col-12 border-top pt-2 mt-3">
+                            <label class="form-label fw-bold text-primary"><i class="bi bi-people-fill me-1"></i> กลุ่มเรียนและจำนวนนักศึกษา (สูงสุด 5 กลุ่ม)</label>
+                        </div>
+                        
+                        <?php for($i=1; $i<=5; $i++): ?>
+                        <div class="col-md-8">
+                            <select name="section_id<?php echo $i; ?>" id="devSection<?php echo $i; ?>" class="form-select">
+                                <option value="">-- เลือกกลุ่มเรียนที่ <?php echo $i; ?> --</option>
+                                <?php foreach($sections_options as $sec): ?>
+                                    <option value="<?php echo $sec['section_id']; ?>"><?php echo $sec['section_name']; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <input type="number" name="count_id<?php echo $i; ?>" id="devCount<?php echo $i; ?>" class="form-control" placeholder="จำนวนนักศึกษา">
+                        </div>
+                        <?php endfor; ?>
 
-                <div class="col-12">
-                    <label class="form-label fw-bold">อัปโหลดรูปภาพกิจกรรม</label>
-                    <input type="file" name="dev_pics[]" id="devPics" class="form-control" accept="image/*" multiple>
-                    <small class="text-muted">เลือกได้หลายรูป (หากเลือกใหม่รูปเดิมจะถูกแทนที่)</small>
+                        <div class="col-md-12 mt-3 border-top pt-2">
+                            <label class="form-label fw-bold">ผู้รับผิดชอบโครงการ</label>
+                            <select name="use_id" id="devUserId" class="form-select" required>
+                                <?php if($is_admin): ?>
+                                    <?php foreach($user_options as $u): ?>
+                                        <option value="<?php echo $u['use_id']; ?>"><?php echo $u['use_title'].$u['use_fname']." ".$u['use_lname']; ?></option>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <option value="<?php echo $logged_in_user_id; ?>"><?php echo $full_name; ?></option>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-bold">อัปโหลดรูปภาพกิจกรรม</label>
+                            <input type="file" name="dev_pics[]" class="form-control" multiple accept="image/*">
+                            <small class="text-muted">สามารถเลือกได้หลายรูปพร้อมกัน</small>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div class="modal-footer border-0 justify-content-center">
-                <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">บันทึกข้อมูล</button>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary px-4">บันทึกข้อมูล</button>
+                </div>
             </div>
         </form>
     </div>
@@ -332,6 +352,15 @@ unset($_SESSION["dev_success"]);
 <script>
     const devModal = new bootstrap.Modal(document.getElementById('devModal'));
     
+    // ระบบค้นหา Real-time
+    document.getElementById('searchInput').addEventListener('keyup', function() {
+        const value = this.value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#devTable tbody tr.dev-row');
+        rows.forEach(row => {
+            row.style.display = row.innerText.toLowerCase().includes(value) ? "" : "none";
+        });
+    });
+
     function openDevModal(mode, data = null) {
         document.getElementById('devAction').value = mode;
         const title = document.getElementById('devModalTitle');
@@ -343,7 +372,7 @@ unset($_SESSION["dev_success"]);
             document.getElementById('devDate').value = '';
             document.getElementById('devAt').value = '';
             document.getElementById('devObj').value = '';
-            if(document.getElementById('devUserId')) document.getElementById('devUserId').selectedIndex = 0;
+            if(document.getElementById('devUserId')) document.getElementById('devUserId').value = "<?php echo $logged_in_user_id; ?>";
             for(let i=1; i<=5; i++) {
                 document.getElementById('devSection'+i).value = '';
                 document.getElementById('devCount'+i).value = '';
@@ -364,18 +393,13 @@ unset($_SESSION["dev_success"]);
         devModal.show();
     }
 
-    // Selection & Print Logic (ปรับให้เหมือนหน้าบทความ)
     document.getElementById('selectAll').addEventListener('change', function() {
-        document.querySelectorAll('.row-checkbox').forEach(cb => {
-            cb.checked = this.checked;
-            cb.closest('tr').style.backgroundColor = this.checked ? '#f8f9ff' : '';
-        });
+        document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = this.checked);
     });
 
     function printSelectedDev() {
         const rows = document.querySelectorAll('.dev-row');
         let selected = false;
-        
         rows.forEach(row => {
             if (!row.querySelector('.row-checkbox').checked) {
                 row.classList.add('d-none-print');
@@ -384,18 +408,9 @@ unset($_SESSION["dev_success"]);
                 row.classList.remove('d-none-print');
             }
         });
-
-        if (!selected) {
-            alert("กรุณาเลือกโครงการที่ต้องการพิมพ์");
-            return;
-        }
-
+        if (!selected) { alert("กรุณาเลือกโครงการที่ต้องการพิมพ์"); return; }
         window.print();
-        
-        // คืนค่าการแสดงผล
-        setTimeout(() => {
-            rows.forEach(row => row.classList.remove('d-none-print'));
-        }, 500);
+        setTimeout(() => { rows.forEach(row => row.classList.remove('d-none-print')); }, 500);
     }
 </script>
 </body>
